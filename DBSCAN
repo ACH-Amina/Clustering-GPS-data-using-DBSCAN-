@@ -1,1 +1,161 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.cluster import DBSCAN
+from sklearn import metrics
+from sklearn.datasets import make_blobs
+from sklearn.preprocessing import StandardScaler
+from geopy.distance import great_circle
+
+#-------------------------
+# Load GPS DATA 
+#-------------------------
+path1 = 'https://raw.githubusercontent.com/acigna/corona_personal_walk_tracking/master/personal_walk.csv'
+path2 = 'https://raw.githubusercontent.com/acigna/corona_personal_walk_tracking/master/personal_walk2.csv'
+
+positions = pd.read_csv(path1)
+positions1 = pd.read_csv(path2)
+positions = positions.append(positions1)
+#positions = positions[:600]
+mat=pd.DataFrame(columns=['lat','lon'])
+mat['lat']= positions.lat.values
+mat['lon']= positions.lon.values
+
+#--------------------
+# compute speed 
+#--------------------
+
+mat_x = positions.lat.values
+mat_y = positions.lat.values
+time_step = 1
+n = len(mat_x) # nombre de positions
+
+speed = np.zeros(n)
+for j in range (1,n):
+        dist_x =mat_x[j]-mat_x[j-1]
+        dist_y = mat_y[j]-mat_y[j-1]
+        speed[j]= np.sqrt((dist_x**2+dist_y**2)/(time_step)**2)
+        
+#print(speed)
+
+# get an idea about different speeds
+#---------------------------------------
+np.unique(speed)
+idx_speed = np.where(speed == 0)
+vect = speed[speed != 0]
+             
+speed_min = vect.min()
+
+print(speed_min)
+plt.hist(speed)
+
+#-------------------------
+# find zones center
+#-------------------------
+centre_zone = pd.DataFrame(columns = ['lat','lon'])
+mat['speed'] = speed
+#mat['time']= positions.time.values
+print(mat.shape)
+
+ ## case speed == 0
+for i in range(len(mat)):
+    if mat.speed[i] == 0 :
+        print(i)
+        centre_zone = centre_zone.append(mat.iloc[i])#, mat.lon[i])
+        
+ ## case of non-zero and equal speed for several individuals
+        # -------
+print(centre_zone)
+
+#-------------------------------------
+# The input of DBSCAN (positions)
+#-------------------------------------
+X = np.array([mat.lat,mat.lon]) #,mat.speed])
+X=X.T
+
+# distance min
+#---------------
+earth_radius_km = 6371
+epsilon = 0.002/ earth_radius_km #calculate 2 meter epsilon threshold
+
+#----------------------
+# optimisation 
+#----------------------
+# find the silhouette max 
+i=0
+silhouette=[]
+for sample in range(3,30): # variate number of compountes in one cluster
+    db = DBSCAN(eps= 0.0000005, min_samples= sample).fit(X)
+    labels = db.labels_
+    silhouette.append(metrics.silhouette_score(X, labels))
+    
+print(silhouette)
+y=range(3,30)
+plt.plot(y,silhouette,c='red')
+
+#-------------------------------------------
+# find the number of compount of DBSCAN
+#-------------------------------------------
+S_metrics = np.array(silhouette)
+metric_max = (S_metrics).max()
+indx_max = np.where(S_metrics == np.amax(S_metrics))
+y = np.array(y) # range of variation  
+number_compounts_DBSCAN = y[indx_max]
+
+print (metric_max, indx_max)
+print (number_compounts_DBSCAN)
+
+
+#------------------------------------------------
+# DSCAN 
+#------------------------------------------------
+
+#db = DBSCAN(eps= 0.0000005, min_samples= number_compounts_DBSCAN).fit(X)
+#labels = db.labels_
+
+db = DBSCAN(eps=0.0000005, min_samples=15).fit(np.radians(X))
+labels = db.labels_
+
+n_clusters_ = len(set(labels)) - (1 if -1 in labels else 0)
+n_noise_ = list(labels).count(-1)
+
+core_samples_mask = np.zeros_like(db.labels_, dtype=bool)
+core_samples_mask[db.core_sample_indices_] = True
+
+print(db.core_sample_indices_)
+print(core_samples_mask)
+
+print('Estimated number of clusters: %d' % n_clusters_)
+print('Estimated number of noise points: %d' % n_noise_)
+print("Silhouette Coefficient: %0.3f"% metrics.silhouette_score(X, labels))
+
+#-------------------------------------------
+# plot results
+#-------------------------------------------
+unique_labels = set(labels)
+colors = [plt.cm.Spectral(each)
+          for each in np.linspace(0, 1, len(unique_labels))]
+for k, col in zip(unique_labels, colors):
+    if k == -1:
+        # Black used for noise.
+        col = [0, 0, 0, 1]
+
+    class_member_mask = (labels == k)
+
+    xy = X[class_member_mask & core_samples_mask]
+    plt.plot(xy[:, 1], xy[:, 0], 'o', markerfacecolor=tuple(col),
+             markeredgecolor='k', markersize=14)
+
+    xy = X[class_member_mask & ~core_samples_mask]
+    plt.plot(xy[:, 1], xy[:, 0], 'o', markerfacecolor=tuple(col),
+             markeredgecolor='k', markersize=1)
+
+plt.title('Estimated number of clusters: %d' % n_clusters_)
+plt.show()
+
+
+
+
+
+
 
