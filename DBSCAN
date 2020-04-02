@@ -107,7 +107,7 @@ print (number_compounts_DBSCAN)
 
 
 #------------------------------------------------
-# DSCAN 
+# DBSCAN 
 #------------------------------------------------
 
 #db = DBSCAN(eps= 0.0000005, min_samples= number_compounts_DBSCAN).fit(X)
